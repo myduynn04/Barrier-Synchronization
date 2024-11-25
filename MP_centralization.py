@@ -5,7 +5,7 @@ NUM_THREADS = 8
 NUM_BARRIERS = 10
 
 def centralized_barrier(count, sense, local_sense):
-    time.sleep(0.001)  # Giả lập thời gian chờ
+    time.sleep(0.001) 
     local_sense.value = not local_sense.value
     
     with count.get_lock():
@@ -20,7 +20,7 @@ def centralized_barrier(count, sense, local_sense):
 
 def worker(thread_num, num_threads, count, sense, local_sense):
     for j in range(NUM_BARRIERS):
-        # Mô phỏng công việc
+   
         time.sleep(0.0001)
         print(f"Hello World from thread {thread_num} of {num_threads}")
         
@@ -36,11 +36,11 @@ def worker(thread_num, num_threads, count, sense, local_sense):
         print(f"Time spent in barrier by thread {thread_num} is {end_time - start_time}")
 
 if __name__ == "__main__":
-    # Khởi tạo các shared variables
+
     count = multiprocessing.Value('i', NUM_THREADS)
     sense = multiprocessing.Value('b', True)
     
-    # Tạo các tiến trình
+
     processes = []
     for i in range(NUM_THREADS):
         local_sense = multiprocessing.Value('b', True)
@@ -48,6 +48,6 @@ if __name__ == "__main__":
         processes.append(p)
         p.start()
     
-    # Đợi tất cả các tiến trình kết thúc
+  
     for p in processes:
         p.join()
