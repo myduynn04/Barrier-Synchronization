@@ -105,7 +105,7 @@ python Visualize_MP_MPI_for_process.py
 ## Contact
 For questions, issues, or collaboration:
 - Email: duyen.nm225967@sis.hust.edu.vn
-- GitHub: [project_repository_link]
+- GitHub: [[project_repository_link](https://github.com/myduynn04/Barrier-Synchronization.git)]
 
 ---
 
