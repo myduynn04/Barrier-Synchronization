@@ -7,7 +7,7 @@ from tabulate import tabulate
 import ctypes
 import random
 
-NUM_BARRIERS = 10  # Reduced number of iterations
+NUM_BARRIERS = 5  # Reduced number of iterations
 P = 8
 BASE_WORK_TIME = 1.5   # Base work time
 BASE_BARRIER_TIME = 0.7  # Base barrier time
