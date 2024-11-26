@@ -9,8 +9,8 @@ import queue
 from contextlib import contextmanager
 
 # Configuration
-NUM_BARRIERS = 100
-P = 2  # number of threads/processes
+NUM_BARRIERS = 5
+P = 8  # number of threads/processes
 SLEEP_TIME = 0.0001
 MAX_BACKOFF = 0.001
 BASE_BACKOFF = 0.000001  # Start with smaller initial backoff
