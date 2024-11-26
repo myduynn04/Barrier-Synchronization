@@ -6,12 +6,21 @@ NUM_THREADS = 0
 NUM_BARRIERS = 0
 array = [[None for _ in range(100)] for _ in range(1000)]
 
+# Create a lock to synchronize printing
+print_lock = threading.Lock()
+
 class Round:
     def __init__(self):
         self.role = -1
         self.opponent = None
         self.flag = False
 
+def safe_print(message):
+    """
+    Safely print messages with lock
+    """
+    with print_lock:
+        print(message)
 
 def barrier(vpid, sense, rounds):
     round = 0
@@ -46,34 +55,27 @@ def barrier(vpid, sense, rounds):
 
     sense[0] = not sense[0]
 
-
 def thread_function(vpid, rounds, sense):
     for i in range(NUM_BARRIERS):
         for _ in range(50):
             pass
 
-        print(f"Hello World from thread {vpid}.")
+        safe_print(f"[Thread {vpid:2d}] Starting iteration {i+1}")
         start_time = time.time()
         barrier(vpid, sense, rounds)
         end_time = time.time()
-        print(f"Hello from thread {vpid} after barrier")
-        print(f"Time spent in barrier by thread {vpid} is {end_time - start_time}")
-
+        
+        safe_print(f"[Thread {vpid:2d}] Barrier completed")
+        safe_print(f"[Thread {vpid:2d}] Time spent in barrier: {end_time - start_time:.6f} seconds")
+        safe_print("-" * 40)  # Add separator line for readability
 
 def main():
-    import sys
     global NUM_THREADS, NUM_BARRIERS
-
-    if len(sys.argv) == 3:
-        NUM_THREADS = int(sys.argv[1])
-        NUM_BARRIERS = int(sys.argv[2])
-    else:
-        print("Syntax: python tournament.py num_threads num_barriers")
-        sys.exit(-1)
-
+    NUM_BARRIERS = 5
+    NUM_THREADS = 8 
     rounds = math.ceil(math.log(NUM_THREADS, 2))
 
-    # Khởi tạo array
+    # Initialize array
     for j in range(NUM_THREADS):
         for k in range(rounds + 1):
             array[j][k] = Round()
@@ -113,6 +115,8 @@ def main():
 
     for thread in threads:
         thread.join()
+
+    safe_print("All threads have completed.")
 
 if __name__ == "__main__":
     main()
