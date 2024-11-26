@@ -24,12 +24,6 @@ def create_progress_bar(progress, width=30):
     else:
         return f'[{bar}] {percentage:.1f}%'
 
-class Round:
-    def __init__(self):
-        self.role = -1
-        self.opponent = None
-        self.flag = False
-
 def print_status_table(thread_status, current_barrier, thread_status_lock):
     with thread_status_lock:
         headers = ['Thread', 'State', 'Progress', 'Time (s)', 'Role']
@@ -52,7 +46,7 @@ def print_status_table(thread_status, current_barrier, thread_status_lock):
                 state = '\033[1;34m✓ Completed\033[0m'
             
             time_spent = f"{status['time']:.2f}" if status['time'] is not None else "---"
-            table_data.append([
+            table_data.append([ 
                 f"\033[1;36mThread {thread_id}\033[0m", 
                 state, 
                 progress, 
@@ -74,84 +68,38 @@ def update_thread_status(thread_status, thread_id, thread_status_lock, **kwargs)
 
 def simulate_work(progress, thread_status, thread_id, thread_status_lock, barrier_num, role):
     start = time.time()
+    time.sleep(0.1 + random.uniform(0, 0.05))  # Thêm một chút độ trễ ngẫu nhiên
     update_thread_status(thread_status, thread_id, thread_status_lock,
                         progress=progress,
                         time=time.time() - start,
                         role=role)
     print_status_table(thread_status, barrier_num, thread_status_lock)
-    time.sleep(0.1 + random.uniform(0, 0.05))  # Thêm một chút độ trễ ngẫu nhiên
 
-def barrier(vpid, sense, rounds, thread_status, thread_status_lock, barrier_num):
-    round = 0
-    start_time = time.time()
-    local_role = array[vpid][round].role
-
-    update_thread_status(thread_status, vpid, thread_status_lock, 
-                        state='waiting', 
-                        time=time.time() - start_time,
-                        role=local_role)
-    print_status_table(thread_status, barrier_num, thread_status_lock)
-    
-    while True:
-        if local_role == "loser":
-            array[vpid][round].opponent.flag = sense[0]
-            while array[vpid][round].flag != sense[0]:
-                time.sleep(DISPLAY_REFRESH)
-                update_thread_status(thread_status, vpid, thread_status_lock,
-                                     time=time.time() - start_time)
-                print_status_table(thread_status, barrier_num, thread_status_lock)
-            break
-        
-        if local_role == "winner":
-            while array[vpid][round].flag != sense[0]:
-                time.sleep(DISPLAY_REFRESH)
-                update_thread_status(thread_status, vpid, thread_status_lock,
-                                     time=time.time() - start_time)
-                print_status_table(thread_status, barrier_num, thread_status_lock)
-        
-        if local_role == "champion":
-            while array[vpid][round].flag != sense[0]:
-                time.sleep(DISPLAY_REFRESH)
-                update_thread_status(thread_status, vpid, thread_status_lock,
-                                     time=time.time() - start_time)
-                print_status_table(thread_status, barrier_num, thread_status_lock)
-            array[vpid][round].opponent.flag = sense[0]
-            break
-        
-        if round < rounds:
-            round += 1
-    
-    # Trở lại
-    while round > 0:
-        round -= 1
-        if local_role == "winner":
-            array[vpid][round].opponent.flag = sense[0]
-        if local_role == "dropout":
-            break
-    
-    sense[0] = not sense[0]
-    
-    update_thread_status(thread_status, vpid, thread_status_lock,
-                        state='completed',
-                        time=time.time() - start_time)
-    print_status_table(thread_status, barrier_num, thread_status_lock)
-
-def thread_function(vpid, rounds, sense, thread_status, thread_status_lock):
+def thread_function(vpid, barrier_object, thread_status, thread_status_lock):
     for barrier_num in range(NUM_BARRIERS):
         # Khởi tạo công việc mới
+        start_time = time.time()
         update_thread_status(thread_status, vpid, thread_status_lock,
                              state='working',
                              progress=0,
-                             time=0,
-                             role=array[vpid][0].role)
+                             time=0)
         print_status_table(thread_status, barrier_num, thread_status_lock)
         
         # Mô phỏng công việc trong 10 bước
         for progress in range(10):
-            simulate_work((progress + 1) / 10, thread_status, vpid, thread_status_lock, barrier_num, array[vpid][0].role)
+            simulate_work((progress + 1) / 10, thread_status, vpid, thread_status_lock, barrier_num, 'working')
         
         # Barrier đồng bộ hóa
-        barrier(vpid, sense, rounds, thread_status, thread_status_lock, barrier_num)
+        update_thread_status(thread_status, vpid, thread_status_lock, state='waiting', time=time.time() - start_time)
+        print_status_table(thread_status, barrier_num, thread_status_lock)
+        
+        try:
+            barrier_object.wait()
+        except threading.BrokenBarrierError:
+            print(f"Barrier bị phá vỡ tại thread {vpid}")
+        
+        update_thread_status(thread_status, vpid, thread_status_lock, state='completed', time=time.time() - start_time)
+        print_status_table(thread_status, barrier_num, thread_status_lock)
         time.sleep(1)  # Tạm dừng để quan sát trạng thái hoàn thành
 
 def print_results_summary(thread_status, total_time):
@@ -175,43 +123,18 @@ def print_results_summary(thread_status, total_time):
     
     print(tabulate(summary_data, headers=["Chỉ Số", "Giá Trị"], tablefmt="grid"))
     
-    print("\n\033[1;33m=== Biểu Đồ Hiệu Năng Thread ===\033[0m")
-    max_bar_width = 30
-    for thread_id, status in sorted(thread_status.items()):
-        if status['time'] is not None:
-            bar_length = int((status['time'] / max_thread_time) * max_bar_width)
-            bar = '█' * bar_length + '▒' * (max_bar_width - bar_length)
-            print(f"Thread {thread_id} ({status['role']}): [{bar}] {status['time']:.2f}s")
+    if max_thread_time > 0:
+        print("\n\033[1;33m=== Biểu Đồ Hiệu Năng Thread ===\033[0m")
+        max_bar_width = 30
+        for thread_id, status in sorted(thread_status.items()):
+            if status['time'] is not None:
+                bar_length = int((status['time'] / max_thread_time) * max_bar_width)
+                bar = '█' * bar_length + '▒' * (max_bar_width - bar_length)
+                print(f"Thread {thread_id}: [{bar}] {status['time']:.2f}s")
 
 def main():
-    global array
-    
-    rounds = math.ceil(math.log(NUM_THREADS, 2))
-    
-    # Khởi tạo array
-    array = [[Round() for _ in range(rounds + 1)] for _ in range(NUM_THREADS)]
-    
-    # Khởi tạo vai trò cho từng thread
-    for l in range(NUM_THREADS):
-        for k in range(rounds + 1):
-            comp = math.ceil(2 ** k)
-            comp_second = math.ceil(2 ** (k - 1))
-            
-            if k > 0 and l % comp == 0 and (l + comp_second) < NUM_THREADS and comp < NUM_THREADS:
-                array[l][k].role = "winner"
-            if k > 0 and l % comp == 0 and (l + comp_second) >= NUM_THREADS:
-                array[l][k].role = "bye"
-            if k > 0 and (l % comp == comp_second):
-                array[l][k].role = "loser"
-            if k > 0 and l == 0 and comp >= NUM_THREADS:
-                array[l][k].role = "champion"
-            if k == 0:
-                array[l][k].role = "dropout"
-            
-            if array[l][k].role == "loser":
-                array[l][k].opponent = array[l - comp_second][k]
-            if array[l][k].role in ["winner", "champion"]:
-                array[l][k].opponent = array[l + comp_second][k]
+    # Khởi tạo Barrier cho NUM_THREADS threads
+    barrier_object = threading.Barrier(NUM_THREADS)
     
     # Khởi tạo trạng thái thread
     thread_status_lock = threading.Lock()
@@ -219,7 +142,7 @@ def main():
         'state': 'working',
         'progress': 0,
         'time': None,
-        'role': array[i][0].role
+        'role': 'worker'
     } for i in range(NUM_THREADS)}
     
     clear_terminal()
@@ -230,10 +153,9 @@ def main():
     # Tạo threads
     threads = []
     for vpid in range(NUM_THREADS):
-        sense = [True]
         thread = threading.Thread(
             target=thread_function,
-            args=(vpid, rounds, sense, thread_status, thread_status_lock)
+            args=(vpid, barrier_object, thread_status, thread_status_lock)
         )
         threads.append(thread)
         thread.start()
