@@ -1,8 +1,19 @@
 from mpi4py import MPI
 import numpy as np
 import time
+import threading  # Thêm để sử dụng lock in ra
 
-NUM_BARRIERS = 1
+# Tạo lock để đồng bộ hóa việc in ra
+print_lock = threading.Lock()
+
+def safe_print(message):
+    """
+    Safely print messages with lock
+    """
+    with print_lock:
+        print(message)
+
+NUM_BARRIERS = 5  # Tăng số lần barrier để giống các code trước
 
 def tree_barrier(rank, numprocs, comm):
     """
@@ -44,6 +55,9 @@ def main():
     times = np.zeros(NUM_BARRIERS, dtype=np.float64)
     
     for i in range(NUM_BARRIERS):
+        # In ra thông tin chi tiết của từng barrier
+        safe_print(f"[Process {rank:2d}] Starting barrier iteration {i+1}")
+        
         # Synchronize before starting timing
         comm.Barrier()
         
@@ -53,8 +67,9 @@ def main():
         
         times[i] = time2 - time1
         
-        if rank == 0:
-            print(f"Barrier {i} completed")
+        safe_print(f"[Process {rank:2d}] Barrier {i+1} completed")
+        safe_print(f"[Process {rank:2d}] Time spent in barrier: {times[i]:.6f} seconds")
+        safe_print("-" * 40)  # Thêm dòng phân tách
     
     # Calculate statistics
     avg_time = np.mean(times)
@@ -63,11 +78,12 @@ def main():
     
     # Only root process prints the timing statistics
     if rank == 0:
-        print(f"\nBarrier Statistics:")
-        print(f"Average time: {avg_time:.6f} seconds")
-        print(f"Min time across processes: {min_time:.6f} seconds")
-        print(f"Max time across processes: {max_time:.6f} seconds")
-        print(f"Number of processes: {numprocs}")
+        safe_print("\nBarrier Statistics:")
+        safe_print(f"Average barrier time: {avg_time:.9f} seconds")
+        safe_print(f"Min time across processes: {min_time:.9f} seconds")
+        safe_print(f"Max time across processes: {max_time:.9f} seconds")
+        safe_print(f"Number of processes: {numprocs}")
+        safe_print("All processes have completed.")
 
 if __name__ == "__main__":
     main()
