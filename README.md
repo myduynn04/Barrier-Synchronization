@@ -19,6 +19,13 @@ This project is developed as part of the **Operating Systems** course. The prima
 - `Visualize_MP_tournament.py`: Visualizes the synchronization process in a tournament-style barrier
 - `Conway_game_of_life.py`: A bonus implementation of Conway's Game of Life using tree-based barriers for synchronization
 
+### 3. Practical Demonstration: Conway's Game of Life
+As a practical example of barrier synchronization, we've included a Conway_game_of_life.py implementation that showcases:
+
+- Distributed grid computation
+- Tree-based barrier synchronization
+- Parallel state updates
+- Process coordination techniques
 ---
 
 ## Prerequisites
