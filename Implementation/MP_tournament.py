@@ -99,7 +99,7 @@ def main():
 
             if k == 0:
                 array[l][k].role = "dropout"
-
+           # Logic bắt cặp : "loser" sẽ bắt cặp với node phía trước nó cách 2^(k-1), và ngược lại
             if array[l][k].role == "loser":
                 array[l][k].opponent = array[l - comp_second][k]
 
