@@ -7,10 +7,10 @@ import sys
 import random
 from typing import Dict  # Keep this import
 
-NUM_THREADS = 8
+NUM_PROCESSES = 8
 NUM_BARRIERS = 5  # Reduced the number of rounds for easier observation
 WORK_TIME = 0.5   # Work processing time (seconds)
-BARRIER_TIME = 0.3  # Waiting time at the barrier (seconds)
+BARRIER_TIME = 0.2  # Waiting time at the barrier (seconds)
 DISPLAY_REFRESH = 0.1  # Screen refresh rate
 
 def clear_terminal():
@@ -25,13 +25,13 @@ def create_progress_bar(progress, width=30):  # Increase progress bar length
     else:
         return f'[{bar}] {percentage:.1f}%'
 
-def print_status_table(thread_status, current_barrier, status_lock):
+def print_status_table(PROCESS_status, current_barrier, status_lock):
     with status_lock:
-        headers = ['Thread', 'State', 'Progress']
+        headers = ['PROCESS', 'State', 'Progress']
         table_data = []
         
-        for thread_id in sorted(thread_status.keys()):
-            status = thread_status[thread_id]
+        for PROCESS_id in sorted(PROCESS_status.keys()):
+            status = PROCESS_status[PROCESS_id]
             progress = create_progress_bar(status['progress'])
             state = status['state']
             
@@ -48,7 +48,7 @@ def print_status_table(thread_status, current_barrier, status_lock):
             
             time_spent = f"{status['time']:.2f}" if status['time'] is not None else "---"
             table_data.append([
-                f"\033[1;36mThread {thread_id}\033[0m", 
+                f"\033[1;36mPROCESS {PROCESS_id}\033[0m", 
                 state, 
                 progress
                 
@@ -62,108 +62,108 @@ def print_status_table(thread_status, current_barrier, status_lock):
        
         sys.stdout.flush()
 
-def update_thread_status(thread_status, thread_id, status_lock, **kwargs):
+def update_PROCESS_status(PROCESS_status, PROCESS_id, status_lock, **kwargs):
     with status_lock:
-        current_status = thread_status[thread_id].copy()
+        current_status = PROCESS_status[PROCESS_id].copy()
         current_status.update(kwargs)
-        thread_status[thread_id] = current_status
+        PROCESS_status[PROCESS_id] = current_status
 
-def simulate_work(progress, thread_status, thread_id, status_lock, barrier_num):
+def simulate_work(progress, PROCESS_status, PROCESS_id, status_lock, barrier_num):
     start = time.time()
-    update_thread_status(thread_status, thread_id, status_lock,
+    update_PROCESS_status(PROCESS_status, PROCESS_id, status_lock,
                         progress=progress,
                         time=time.time() - start)
-    print_status_table(thread_status, barrier_num, status_lock)
+    print_status_table(PROCESS_status, barrier_num, status_lock)
     time.sleep(WORK_TIME + random.uniform(0, 0.1))  # Add a bit of random delay
 
 
-def centralized_barrier(thread_id, barrier_num, count, sense, local_sense, thread_status, status_lock):
+def centralized_barrier(PROCESS_id, barrier_num, count, sense, local_sense, PROCESS_status, status_lock):
     start_time = time.time()
     local_sense.value = not local_sense.value
     
-    update_thread_status(thread_status, thread_id, status_lock, 
+    update_PROCESS_status(PROCESS_status, PROCESS_id, status_lock, 
                         state='waiting', 
                         time=time.time() - start_time)
-    print_status_table(thread_status, barrier_num, status_lock)
+    print_status_table(PROCESS_status, barrier_num, status_lock)
     
     with count.get_lock():
         count.value -= 1
         if count.value == 0:
-            time.sleep(BARRIER_TIME)  # Pause when all threads reach the barrier
-            count.value = NUM_THREADS
+            time.sleep(BARRIER_TIME)  # Pause when all PROCESSES reach the barrier
+            count.value = NUM_PROCESSES
             sense.value = local_sense.value
         else:
             while sense.value != local_sense.value:
                 time.sleep(DISPLAY_REFRESH)
-                update_thread_status(thread_status, thread_id, status_lock,
+                update_PROCESS_status(PROCESS_status, PROCESS_id, status_lock,
                                    time=time.time() - start_time)
-                print_status_table(thread_status, barrier_num, status_lock)
+                print_status_table(PROCESS_status, barrier_num, status_lock)
 
-def worker(thread_id, count, sense, local_sense, thread_status, status_lock):
+def worker(PROCESS_id, count, sense, local_sense, PROCESS_status, status_lock):
     for barrier_num in range(NUM_BARRIERS):
         # Initialize new work
-        update_thread_status(thread_status, thread_id, status_lock,
+        update_PROCESS_status(PROCESS_status, PROCESS_id, status_lock,
                            state='working',
                            progress=0,
                            time=0)
-        print_status_table(thread_status, barrier_num, status_lock)
+        print_status_table(PROCESS_status, barrier_num, status_lock)
         
         # Simulate work in 10 steps
         for progress in range(10):
-            simulate_work((progress + 1) / 10, thread_status, thread_id, status_lock, barrier_num)
+            simulate_work((progress + 1) / 10, PROCESS_status, PROCESS_id, status_lock, barrier_num)
         
         # Barrier synchronization
-        centralized_barrier(thread_id, barrier_num, count, sense, local_sense, thread_status, status_lock)
+        centralized_barrier(PROCESS_id, barrier_num, count, sense, local_sense, PROCESS_status, status_lock)
         
         # Mark as completed
-        update_thread_status(thread_status, thread_id, status_lock,
+        update_PROCESS_status(PROCESS_status, PROCESS_id, status_lock,
                            state='completed')
-        print_status_table(thread_status, barrier_num, status_lock)
+        print_status_table(PROCESS_status, barrier_num, status_lock)
         time.sleep(1)  # Pause to observe completed state
 
-def print_results_summary(thread_status: Dict, total_time: float):
+def print_results_summary(PROCESS_status: Dict, total_time: float):
     """Print a summary of the barrier synchronization simulation results."""
     print("\n\033[1;35m=== Simulation Results ===\033[0m")
     
-    # Collect thread-wise statistics
-    thread_times = [status['time'] for status in thread_status.values() if status['time'] is not None]
+    # Collect PROCESS-wise statistics
+    PROCESS_times = [status['time'] for status in PROCESS_status.values() if status['time'] is not None]
     
     # Calculate summary statistics
-    avg_thread_time = sum(thread_times) / len(thread_times) if thread_times else 0
-    max_thread_time = max(thread_times) if thread_times else 0
-    min_thread_time = min(thread_times) if thread_times else 0
+    avg_PROCESS_time = sum(PROCESS_times) / len(PROCESS_times) if PROCESS_times else 0
+    max_PROCESS_time = max(PROCESS_times) if PROCESS_times else 0
+    min_PROCESS_time = min(PROCESS_times) if PROCESS_times else 0
     
     # Prepare summary table
     summary_data = [
-        ["Total Threads", NUM_THREADS],
+        ["Total PROCESSES", NUM_PROCESSES],
         ["Number of Barrier Rounds", NUM_BARRIERS],
         ["Total Execution Time", f"{total_time:.2f} seconds"],
-        ["Average Time per Thread", f"{avg_thread_time:.2f} seconds"],
-        ["Max Time per Thread", f"{max_thread_time:.2f} seconds"],
-        ["Min Time per Thread", f"{min_thread_time:.2f} seconds"]
+        ["Average Time per PROCESS", f"{avg_PROCESS_time:.2f} seconds"],
+        ["Max Time per PROCESS", f"{max_PROCESS_time:.2f} seconds"],
+        ["Min Time per PROCESS", f"{min_PROCESS_time:.2f} seconds"]
     ]
     
     # Print summary table
     print(tabulate(summary_data, headers=["Metric", "Value"], tablefmt="grid"))
     
-    # Visual representation of thread performance
+    # Visual representation of PROCESS performance
     
 
 def main():
     # Initialize shared variables
     start_total_time = time.time()
     manager = multiprocessing.Manager()
-    thread_status = manager.dict()
+    PROCESS_status = manager.dict()
     status_lock = multiprocessing.Lock()
     
-    for i in range(NUM_THREADS):
-        thread_status[i] = {
+    for i in range(NUM_PROCESSES):
+        PROCESS_status[i] = {
             'state': 'working',
             'progress': 0,
             'time': None
         }
     
-    count = multiprocessing.Value('i', NUM_THREADS)
+    count = multiprocessing.Value('i', NUM_PROCESSES)
     sense = multiprocessing.Value('b', True)
     
     clear_terminal()
@@ -173,15 +173,15 @@ def main():
     
     # Create processes
     processes = []
-    for i in range(NUM_THREADS):
+    for i in range(NUM_PROCESSES):
         local_sense = multiprocessing.Value('b', True)
         p = multiprocessing.Process(
             target=worker,
-            args=(i, count, sense, local_sense, thread_status, status_lock)
+            args=(i, count, sense, local_sense, PROCESS_status, status_lock)
         )
         processes.append(p)
         p.start()
-        time.sleep(0.1)  # Sequential thread start
+        time.sleep(0.1)  # Sequential PROCESS start
     
     # Wait for all processes to finish
     for p in processes:
@@ -197,7 +197,7 @@ def main():
     print(f"\nTotal execution time: {total_time:.2f} seconds")
     
     # Print results summary
-    print_results_summary(thread_status, total_time)
+    print_results_summary(PROCESS_status, total_time)
 
 if __name__ == "__main__":
     main()
