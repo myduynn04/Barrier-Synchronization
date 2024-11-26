@@ -92,7 +92,7 @@ def print_results_summary(shared_times, total_time):
     avg_barrier_time = shared_times.value / (P * NUM_BARRIERS)
     
     summary_data = [
-        ["Number of Threads", P],
+        ["Number of Process", P],
         ["Number of Barrier Iterations", NUM_BARRIERS],
         ["Total Execution Time", f"{total_time:.2f} seconds"],
         ["Average Time/Barrier", f"{avg_barrier_time:.6f} seconds"],
