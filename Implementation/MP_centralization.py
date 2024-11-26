@@ -4,6 +4,9 @@ import time
 NUM_THREADS = 8
 NUM_BARRIERS = 5
 
+# Tạo một lock dùng chung để in output
+print_lock = threading.Lock()
+
 class CentralizedBarrier:
     def __init__(self, num_threads):
         self.num_threads = num_threads
@@ -17,6 +20,8 @@ class CentralizedBarrier:
         with self.lock:
             # Toggle local sense for this thread
             current_sense = not self.sense
+
+            # Store local sense 
             self.local_sense.value = current_sense
 
             # Decrement the count of threads waiting
@@ -38,7 +43,10 @@ class CentralizedBarrier:
 def worker(thread_num, num_threads, barrier):
     for j in range(NUM_BARRIERS):
         time.sleep(0.0001)
-        print(f"Hello World from thread {thread_num} of {num_threads}")
+        
+        # Sử dụng lock khi in ra
+        with print_lock:
+            print(f"Hello World from thread {thread_num} of {num_threads}")
         
         start_time = time.time()
         # Barrier synchronization
@@ -47,9 +55,11 @@ def worker(thread_num, num_threads, barrier):
         
         # Post barrier
         time.sleep(0.0001)
-        print(f"Hello World from thread {thread_num} of {num_threads} after barrier")
         
-        print(f"Time spent in barrier by thread {thread_num} is {end_time - start_time}")
+        # Sử dụng lock khi in ra
+        with print_lock:
+            print(f"Hello World from thread {thread_num} of {num_threads} after barrier")
+            print(f"Time spent in barrier by thread {thread_num} is {end_time - start_time}\n")
 
 def main():
     # Create a centralized barrier
