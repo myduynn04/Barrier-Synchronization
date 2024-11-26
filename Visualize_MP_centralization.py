@@ -27,7 +27,7 @@ def create_progress_bar(progress, width=30):  # Increase progress bar length
 
 def print_status_table(thread_status, current_barrier, status_lock):
     with status_lock:
-        headers = ['Thread', 'State', 'Progress', 'Time (s)']
+        headers = ['Thread', 'State', 'Progress']
         table_data = []
         
         for thread_id in sorted(thread_status.keys()):
@@ -50,8 +50,8 @@ def print_status_table(thread_status, current_barrier, status_lock):
             table_data.append([
                 f"\033[1;36mThread {thread_id}\033[0m", 
                 state, 
-                progress, 
-                time_spent
+                progress
+                
             ])
         
         clear_terminal()
@@ -147,13 +147,7 @@ def print_results_summary(thread_status: Dict, total_time: float):
     print(tabulate(summary_data, headers=["Metric", "Value"], tablefmt="grid"))
     
     # Visual representation of thread performance
-    print("\n\033[1;33m=== Thread Performance Chart ===\033[0m")
-    max_bar_width = 30
-    for thread_id, status in sorted(thread_status.items()):
-        if status['time'] is not None:
-            bar_length = int((status['time'] / max_thread_time) * max_bar_width)
-            bar = '█' * bar_length + '▒' * (max_bar_width - bar_length)
-            print(f"Thread {thread_id}: [{bar}] {status['time']:.2f}s")
+    
 
 def main():
     # Initialize shared variables
