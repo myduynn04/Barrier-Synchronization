@@ -7,6 +7,7 @@ import ctypes
 from threading import Barrier, Thread
 import queue
 from contextlib import contextmanager
+import threading  # Thêm import để sử dụng print_lock
 
 # Configuration
 NUM_BARRIERS = 5
@@ -14,6 +15,16 @@ P = 8  # number of threads/processes
 SLEEP_TIME = 0.0001
 MAX_BACKOFF = 0.001
 BASE_BACKOFF = 0.000001  # Start with smaller initial backoff
+
+# Tạo lock để đồng bộ hóa việc in ra
+print_lock = threading.Lock()
+
+def safe_print(message):
+    """
+    Safely print messages with lock
+    """
+    with print_lock:
+        print(message)
 
 class OptimizedFlags:
     def __init__(self, size):
@@ -106,12 +117,17 @@ def worker_thread(thread_id, barrier, results_queue):
     local_time = 0
     times = []  # Store individual timings for analysis
     
-    for _ in range(NUM_BARRIERS):
+    for i in range(NUM_BARRIERS):
+        safe_print(f"[Thread {thread_id:2d}] Starting iteration {i+1}")
         start = time.perf_counter_ns()  # Use nanosecond precision
         barrier.wait()
         elapsed = (time.perf_counter_ns() - start) / 1e9  # Convert to seconds
         local_time += elapsed
         times.append(elapsed)
+        
+        safe_print(f"[Thread {thread_id:2d}] Barrier completed")
+        safe_print(f"[Thread {thread_id:2d}] Time spent in barrier: {elapsed:.6f} seconds")
+        safe_print("-" * 40)  # Add separator line for readability
     
     results_queue.put((local_time, times))
 
@@ -131,19 +147,24 @@ def worker_process(process_id, num_processes, barrier_manager):
     local_time = 0
     times = []
     
-    for _ in range(NUM_BARRIERS):
+    for i in range(NUM_BARRIERS):
+        safe_print(f"[Process {process_id:2d}] Starting iteration {i+1}")
         start = time.perf_counter_ns()
         optimized_dissemination_barrier(local_flags, sense, parity, proc, lock)
         elapsed = (time.perf_counter_ns() - start) / 1e9
         local_time += elapsed
         times.append(elapsed)
         
+        safe_print(f"[Process {process_id:2d}] Barrier completed")
+        safe_print(f"[Process {process_id:2d}] Time spent in barrier: {elapsed:.6f} seconds")
+        safe_print("-" * 40)
+        
     with barrier_manager.get_shared_time().get_lock():
         barrier_manager.get_shared_time().value += local_time
 
 def main():
     # Thread-based execution
-    print("Running thread-based barrier test...")
+    safe_print("Running thread-based barrier test...")
     barrier = Barrier(P)
     results_queue = queue.Queue()
     threads = []
@@ -161,10 +182,10 @@ def main():
     thread_results = [results_queue.get() for _ in range(P)]
     thread_time = sum(r[0] for r in thread_results) / P
     
-    print(f"Average thread barrier time: {thread_time/NUM_BARRIERS:.9f} seconds")
+    safe_print(f"Average thread barrier time: {thread_time/NUM_BARRIERS:.9f} seconds")
     
     # Process-based execution
-    print("\nRunning process-based barrier test...")
+    safe_print("\nRunning process-based barrier test...")
     barrier_manager = BarrierManager(P)
     processes = []
     
@@ -181,8 +202,9 @@ def main():
     total_time = time.perf_counter() - start_time
     avg_barrier_time = barrier_manager.get_shared_time().value / (P * NUM_BARRIERS)
     
-    print(f"Average process barrier time: {avg_barrier_time:.9f} seconds")
-    print(f"Total execution time: {total_time:.6f} seconds")
+    safe_print(f"Average process barrier time: {avg_barrier_time:.9f} seconds")
+    safe_print(f"Total execution time: {total_time:.6f} seconds")
+    safe_print("All threads and processes have completed.")
 
 if __name__ == "__main__":
     mp.set_start_method('spawn')  # Use spawn for better process isolation
