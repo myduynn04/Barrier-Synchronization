@@ -4,7 +4,7 @@ import time
 NUM_THREADS = 8
 NUM_BARRIERS = 5
 
-# Tạo một lock dùng chung để in output
+# Tạo một A dùng chung để in output
 print_lock = threading.Lock()
 
 class CentralizedBarrier:
