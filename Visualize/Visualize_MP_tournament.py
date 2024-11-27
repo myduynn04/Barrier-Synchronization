@@ -1,177 +1,148 @@
+import tkinter as tk
 import threading
 import math
 import time
-import os
-import sys
-from tabulate import tabulate
 import random
 
-# Cấu hình cố định
-NUM_THREADS = 8
-NUM_BARRIERS = 5
-DISPLAY_REFRESH = 0.1
-BARRIER_TIME = 0.3
-
-def clear_terminal():
-    os.system('cls' if os.name == 'nt' else 'clear')
-
-def create_progress_bar(progress, width=30):
-    filled = int(width * progress)
-    bar = '█' * filled + '▒' * (width - filled)
-    percentage = progress * 100
-    if percentage == 100:
-        return f'[{bar}] \033[1;32m{percentage:.1f}%\033[0m'  # Màu xanh khi hoàn thành
-    else:
-        return f'[{bar}] {percentage:.1f}%'
-
-def print_status_table(thread_status, current_barrier, thread_status_lock):
-    with thread_status_lock:
-        headers = ['Thread', 'State', 'Progress', 'Time (s)', 'Role']
-        table_data = []
+class TournamentBarrierVisualizer:
+    def __init__(self, num_threads=8, num_barriers=5):
+        # Configuration first
+        self.NUM_THREADS = num_threads
+        self.NUM_BARRIERS = num_barriers
+        self.rounds = math.ceil(math.log(self.NUM_THREADS, 2))
         
-        for thread_id in sorted(thread_status.keys()):
-            status = thread_status[thread_id]
-            progress = create_progress_bar(status['progress'])
-            state = status['state']
+        # Create Tkinter root
+        self.root = tk.Tk()
+        self.root.title("Tournament Barrier Visualization")
+        
+        # Synchronization data
+        self.thread_states = [tk.StringVar(value="Waiting") for _ in range(self.NUM_THREADS)]
+        self.thread_colors = [self.generate_pastel_color() for _ in range(self.NUM_THREADS)]
+        
+        # Barrier simulation data
+        self.array = [[{'role': '', 'state': tk.StringVar(value="")} 
+                       for _ in range(self.rounds + 1)] 
+                      for _ in range(self.NUM_THREADS)]
+        
+        # Setup UI
+        self.setup_ui()
+        
+        # Initialize thread roles
+        self.initialize_thread_roles()
+        
+    def generate_pastel_color(self):
+        """Generate a random pastel color."""
+        return f'#{random.randint(150, 220):02x}{random.randint(150, 220):02x}{random.randint(150, 220):02x}'
+    
+    def setup_ui(self):
+        """Create the main UI layout."""
+        # Thread status frame
+        thread_frame = tk.Frame(self.root)
+        thread_frame.pack(pady=10, padx=10)
+        
+        self.thread_labels = []
+        for i in range(self.NUM_THREADS):
+            label = tk.Label(thread_frame, 
+                             textvariable=self.thread_states[i], 
+                             relief=tk.RAISED, 
+                             width=15,
+                             bg=self.thread_colors[i])
+            label.pack(side=tk.LEFT, padx=5)
+            self.thread_labels.append(label)
+        
+        # Rounds visualization
+        self.round_frames = []
+        for round_num in range(self.rounds + 1):
+            round_frame = tk.Frame(self.root, relief=tk.SUNKEN, borderwidth=2)
+            round_frame.pack(pady=5)
             
-            # Hiệu ứng nhấp nháy cho trạng thái chờ
-            if state == 'waiting':
-                if int(time.time() * 2) % 2:
-                    state = '\033[1;33m⌛ Waiting for barrier\033[0m'
-                else:
-                    state = '\033[1;33m⏳ Waiting for barrier\033[0m'
-            elif state == 'working':
-                state = '\033[1;32m⚙ Working\033[0m'
-            elif state == 'completed':
-                state = '\033[1;34m✓ Completed\033[0m'
+            round_label = tk.Label(round_frame, text=f"Round {round_num}")
+            round_label.pack()
             
-            time_spent = f"{status['time']:.2f}" if status['time'] is not None else "---"
-            table_data.append([ 
-                f"\033[1;36mThread {thread_id}\033[0m", 
-                state, 
-                progress, 
-                time_spent,
-                f"\033[1;35m{status['role']}\033[0m"
-            ])
+            thread_roles = []
+            for thread_num in range(self.NUM_THREADS):
+                role_label = tk.Label(round_frame, 
+                                      textvariable=self.array[thread_num][round_num]['state'], 
+                                      width=10,
+                                      bg=self.thread_colors[thread_num])
+                role_label.pack(side=tk.LEFT, padx=2)
+                thread_roles.append(role_label)
+            
+            self.round_frames.append((round_frame, thread_roles))
         
-        clear_terminal()
-        print(f"\n\033[1;35m=== Tournament Barrier Synchronization Simulation ===\033[0m")
-        print(f"\033[1;33mRound: {current_barrier + 1}/{NUM_BARRIERS}\033[0m")
-        print(tabulate(table_data, headers=headers, tablefmt="grid"))
-        sys.stdout.flush()
-
-def update_thread_status(thread_status, thread_id, thread_status_lock, **kwargs):
-    with thread_status_lock:
-        current_status = thread_status[thread_id].copy()
-        current_status.update(kwargs)
-        thread_status[thread_id] = current_status
-
-def simulate_work(progress, thread_status, thread_id, thread_status_lock, barrier_num, role):
-    start = time.time()
-    time.sleep(0.1 + random.uniform(0, 0.05))  # Thêm một chút độ trễ ngẫu nhiên
-    update_thread_status(thread_status, thread_id, thread_status_lock,
-                        progress=progress,
-                        time=time.time() - start,
-                        role=role)
-    print_status_table(thread_status, barrier_num, thread_status_lock)
-
-def thread_function(vpid, barrier_object, thread_status, thread_status_lock):
-    for barrier_num in range(NUM_BARRIERS):
-        # Khởi tạo công việc mới
-        start_time = time.time()
-        update_thread_status(thread_status, vpid, thread_status_lock,
-                             state='working',
-                             progress=0,
-                             time=0)
-        print_status_table(thread_status, barrier_num, thread_status_lock)
+        # Start button
+        start_button = tk.Button(self.root, text="Start Barrier Simulation", command=self.start_simulation)
+        start_button.pack(pady=10)
+    
+    def initialize_thread_roles(self):
+        """Initialize thread roles for each round."""
+        for l in range(self.NUM_THREADS):
+            for k in range(self.rounds + 1):
+                comp = math.ceil(2 ** k)
+                comp_second = math.ceil(2 ** (k - 1))
+                
+                role = ""
+                if k > 0 and l % comp == 0 and (l + comp_second) < self.NUM_THREADS and comp < self.NUM_THREADS:
+                    role = "winner"
+                elif k > 0 and l % comp == 0 and (l + comp_second) >= self.NUM_THREADS:
+                    role = "bye"
+                elif k > 0 and (l % comp == comp_second):
+                    role = "loser"
+                elif k > 0 and l == 0 and comp >= self.NUM_THREADS:
+                    role = "champion"
+                elif k == 0:
+                    role = "dropout"
+                
+                self.array[l][k]['role'] = role
+                self.array[l][k]['state'].set(role)
+    
+    def thread_barrier_simulation(self, thread_id):
+        """Simulate thread barrier process with slower execution."""
+        for barrier_iteration in range(self.NUM_BARRIERS):
+            # Update thread state
+            self.thread_states[thread_id].set("Entering Barrier")
+            
+            # Simulate barrier entry with longer wait
+            time.sleep(random.uniform(1.0, 2.0))  # Increased from 0.1-0.5 to 1.0-2.0
+            
+            # Update thread state
+            self.thread_states[thread_id].set("In Barrier")
+            
+            # Simulate synchronization with longer wait
+            time.sleep(random.uniform(1.5, 3.0))  # Increased from 0.3-0.7 to 1.5-3.0
+            
+            # Update thread state
+            self.thread_states[thread_id].set("Exiting Barrier")
+            
+            # Longer pause between barrier iterations
+            time.sleep(1.0)  # Increased from 0.2 to 1.0
         
-        # Mô phỏng công việc trong 10 bước
-        for progress in range(10):
-            simulate_work((progress + 1) / 10, thread_status, vpid, thread_status_lock, barrier_num, 'working')
+        # Final state
+        self.thread_states[thread_id].set("Completed")
+    
+    def start_simulation(self):
+        """Start the tournament barrier simulation."""
+        # Create and start threads
+        threads = []
+        for i in range(self.NUM_THREADS):
+            thread = threading.Thread(target=self.thread_barrier_simulation, args=(i,))
+            threads.append(thread)
+            thread.start()
         
-        # Barrier đồng bộ hóa
-        update_thread_status(thread_status, vpid, thread_status_lock, state='waiting', time=time.time() - start_time)
-        print_status_table(thread_status, barrier_num, thread_status_lock)
+        # Wait for threads to complete
+        def wait_for_threads():
+            for thread in threads:
+                thread.join()
+            self.thread_states[0].set("All Threads Completed")
         
-        try:
-            barrier_object.wait()
-        except threading.BrokenBarrierError:
-            print(f"Barrier bị phá vỡ tại thread {vpid}")
-        
-        update_thread_status(thread_status, vpid, thread_status_lock, state='completed', time=time.time() - start_time)
-        print_status_table(thread_status, barrier_num, thread_status_lock)
-        time.sleep(1)  # Tạm dừng để quan sát trạng thái hoàn thành
+        # Start waiting thread
+        threading.Thread(target=wait_for_threads).start()
+    
+    def run(self):
+        """Run the Tkinter event loop."""
+        self.root.mainloop()
 
-def print_results_summary(thread_status, total_time):
-    clear_terminal()
-    print("\n\033[1;35m=== Kết Quả Mô Phỏng Tournament Barrier ===\033[0m")
-    
-    thread_times = [status['time'] for status in thread_status.values() if status['time'] is not None]
-    
-    avg_thread_time = sum(thread_times) / len(thread_times) if thread_times else 0
-    max_thread_time = max(thread_times) if thread_times else 0
-    min_thread_time = min(thread_times) if thread_times else 0
-    
-    summary_data = [
-        ["Tổng Số Threads", NUM_THREADS],
-        ["Số Vòng Barrier", NUM_BARRIERS],
-        ["Tổng Thời Gian Thực Thi", f"{total_time:.2f} giây"],
-        ["Thời Gian Trung Bình Mỗi Thread", f"{avg_thread_time:.2f} giây"],
-        ["Thời Gian Tối Đa Mỗi Thread", f"{max_thread_time:.2f} giây"],
-        ["Thời Gian Tối Thiểu Mỗi Thread", f"{min_thread_time:.2f} giây"]
-    ]
-    
-    print(tabulate(summary_data, headers=["Chỉ Số", "Giá Trị"], tablefmt="grid"))
-    
-    if max_thread_time > 0:
-        print("\n\033[1;33m=== Biểu Đồ Hiệu Năng Thread ===\033[0m")
-        max_bar_width = 30
-        for thread_id, status in sorted(thread_status.items()):
-            if status['time'] is not None:
-                bar_length = int((status['time'] / max_thread_time) * max_bar_width)
-                bar = '█' * bar_length + '▒' * (max_bar_width - bar_length)
-                print(f"Thread {thread_id}: [{bar}] {status['time']:.2f}s")
-
-def main():
-    # Khởi tạo Barrier cho NUM_THREADS threads
-    barrier_object = threading.Barrier(NUM_THREADS)
-    
-    # Khởi tạo trạng thái thread
-    thread_status_lock = threading.Lock()
-    thread_status = {i: {
-        'state': 'working',
-        'progress': 0,
-        'time': None,
-        'role': 'worker'
-    } for i in range(NUM_THREADS)}
-    
-    clear_terminal()
-    print("\033[1;35m=== Bắt Đầu Mô Phỏng Tournament Barrier ===\033[0m")
-    start_total_time = time.time()
-    time.sleep(1)
-    
-    # Tạo threads
-    threads = []
-    for vpid in range(NUM_THREADS):
-        thread = threading.Thread(
-            target=thread_function,
-            args=(vpid, barrier_object, thread_status, thread_status_lock)
-        )
-        threads.append(thread)
-        thread.start()
-        time.sleep(0.1)  # Khởi động tuần tự các thread
-    
-    # Đợi tất cả các threads kết thúc
-    for thread in threads:
-        thread.join()
-    
-    total_time = time.time() - start_total_time
-    
-    print("\n\033[1;35m=== Hoàn Thành Mô Phỏng ===\033[0m")
-    print(f"\nTổng thời gian thực thi: {total_time:.2f} giây")
-    
-    # In kết quả tóm tắt
-    print_results_summary(thread_status, total_time)
-
+# Create and run the visualization
 if __name__ == "__main__":
-    main()
+    visualizer = TournamentBarrierVisualizer()
+    visualizer.run()
