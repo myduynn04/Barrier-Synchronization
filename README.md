@@ -1,6 +1,6 @@
 # Barrier Synchronization 
 
-This project is developed as part of the **Operating Systems** course. The primary goal is to explore and implement various barrier synchronization techniques in both multi-threaded and distributed environments. The project demonstrates the use of centralized, tournament-style, and tree-based barriers, as well as their performance analysis through visualization.
+This project is developed as part of the **Operating Systems** course of HUST. The primary goal is to explore and implement various barrier synchronization techniques in both multi-threaded and distributed environments. The project demonstrates the use of centralized, tournament-style, and tree-based barriers, as well as their performance analysis through visualization.
 
 ---
 
